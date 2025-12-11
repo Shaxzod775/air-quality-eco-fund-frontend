@@ -32,6 +32,7 @@ const CommunityView: React.FC<Props> = ({ user, projects, setActiveTab, onInitia
     // Report state
     const [reportStep, setReportStep] = useState(0);
     const [complaintText, setComplaintText] = useState('');
+    const [violationAddress, setViolationAddress] = useState('');
     const [selectedPhotos, setSelectedPhotos] = useState<File[]>([]);
     const [selectedVideos, setSelectedVideos] = useState<File[]>([]);
     const [photoPreview, setPhotoPreview] = useState<string[]>([]);
@@ -110,18 +111,33 @@ const CommunityView: React.FC<Props> = ({ user, projects, setActiveTab, onInitia
     };
 
     const handleSubmitComplaint = async () => {
-        if (!complaintText.trim() || selectedPhotos.length === 0) {
-            alert(t('report_need_photo') || 'Пожалуйста, загрузите хотя бы одно фото');
+        // Validate minimum 3 photos
+        if (selectedPhotos.length < 3) {
+            alert(t('report_min_photos') || 'Пожалуйста, загрузите минимум 3 фото');
+            return;
+        }
+
+        if (!complaintText.trim()) {
+            alert(t('report_need_description') || 'Пожалуйста, добавьте описание нарушения');
+            return;
+        }
+
+        if (!violationAddress.trim()) {
+            alert(t('report_need_address') || 'Пожалуйста, укажите адрес нарушения');
             return;
         }
 
         setIsSubmitting(true);
 
         try {
-            // Create FormData with first photo and description
+            // Create FormData with all photos, description and address
             const formData = new FormData();
-            formData.append('image', selectedPhotos[0]);
+            // Append all photos
+            selectedPhotos.forEach((photo) => {
+                formData.append('images', photo);
+            });
             formData.append('description', complaintText);
+            formData.append('address', violationAddress);
 
             // Call AI API
             const result = await complaintsApi.analyzeComplaint(formData);
@@ -163,6 +179,7 @@ const CommunityView: React.FC<Props> = ({ user, projects, setActiveTab, onInitia
     const resetForm = () => {
         setReportStep(0);
         setComplaintText('');
+        setViolationAddress('');
         setSelectedPhotos([]);
         setSelectedVideos([]);
         setAnalysisResult(null);
@@ -335,8 +352,25 @@ const CommunityView: React.FC<Props> = ({ user, projects, setActiveTab, onInitia
                                     className="w-full h-32 p-4 border border-[#E5E7EB] rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#EB5757]/30 focus:border-[#EB5757]"
                                 />
 
+                                {/* Address Input */}
+                                <div>
+                                    <label className="block text-xs font-bold text-[#4B5563] mb-2">
+                                        {t('report_address_label') || 'Адрес нарушения'} <span className="text-[#EB5757]">*</span>
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={violationAddress}
+                                        onChange={(e) => setViolationAddress(e.target.value)}
+                                        placeholder={t('report_address_placeholder') || 'Укажите адрес или ориентир (улица, район, здание)'}
+                                        className="w-full p-4 border border-[#E5E7EB] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#EB5757]/30 focus:border-[#EB5757]"
+                                    />
+                                </div>
+
                                 {/* Photo Upload */}
                                 <div>
+                                    <label className="block text-xs font-bold text-[#4B5563] mb-2">
+                                        {t('report_photos_label') || 'Фото нарушения'} <span className="text-[#EB5757]">* (мин. 3, макс. 10)</span>
+                                    </label>
                                     <input
                                         type="file"
                                         accept="image/*"
@@ -345,9 +379,9 @@ const CommunityView: React.FC<Props> = ({ user, projects, setActiveTab, onInitia
                                         className="hidden"
                                         id="photo-upload"
                                     />
-                                    <label htmlFor="photo-upload" className="flex items-center justify-center gap-2 w-full p-3 border-2 border-dashed border-[#E5E7EB] rounded-xl text-[#9CA3AF] text-xs font-bold cursor-pointer hover:border-[#40A7E3] hover:text-[#40A7E3] transition-colors">
+                                    <label htmlFor="photo-upload" className={`flex items-center justify-center gap-2 w-full p-3 border-2 border-dashed rounded-xl text-xs font-bold cursor-pointer transition-colors ${selectedPhotos.length < 3 ? 'border-[#EB5757] text-[#EB5757] hover:bg-[#EB5757]/5' : 'border-[#27AE60] text-[#27AE60] hover:bg-[#27AE60]/5'}`}>
                                         <ImagePlus size={18} />
-                                        {t('report_add_photos')} ({selectedPhotos.length}/10)
+                                        {t('report_add_photos') || 'Добавить фото'} ({selectedPhotos.length}/10) {selectedPhotos.length < 3 && `— нужно ещё ${3 - selectedPhotos.length}`}
                                     </label>
                                     {selectedPhotos.length > 0 && (
                                         <div className="grid grid-cols-3 gap-2 mt-3">
@@ -405,7 +439,7 @@ const CommunityView: React.FC<Props> = ({ user, projects, setActiveTab, onInitia
                                 {/* Submit Button */}
                                 <button
                                     onClick={handleSubmitComplaint}
-                                    disabled={!complaintText.trim() || isSubmitting}
+                                    disabled={!complaintText.trim() || !violationAddress.trim() || selectedPhotos.length < 3 || isSubmitting}
                                     className="w-full bg-[#EB5757] text-white py-3.5 btn-radius font-bold shadow-lg shadow-[#EB5757]/30 active:scale-95 transition-transform disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                                 >
                                     {isSubmitting ? (
